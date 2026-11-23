@@ -4,7 +4,7 @@
 [![Rank](https://make.fun/badge/news-image-20261123/turibaru/news-image-20261123/rank.svg)](https://make.fun/c/news-image-20261123?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123)
 [![Reward](https://make.fun/badge/news-image-20261123/turibaru/news-image-20261123/reward.svg)](https://make.fun/c/news-image-20261123?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123)
 
-A dense front-page image summing up world news on Monday, 23 November 2026: 38 stories across 7 regions, led by NVIDIA reinstating Jensen Huang as CEO, Trump's Justice Department address, and Democrats clinching the House — with a red DATE CHECK box (every story happened or was first reported on 23 Nov 2026 UTC; stale stories named and left out), a strictly chronological UTC timeline, and sections for the Middle East, Europe, North America, Latin America, South Asia, East Asia & Pacific, Africa, markets and tech, and sport, science and culture. Rendered deterministically with `python3 render.py`.
+A dense front-page image summing up world news on Monday, 23 November 2026: 38 stories across 7 regions, led by NVIDIA reinstating Jensen Huang as CEO, Trump's Justice Department address, and India's $1.62bn aid package for Nepal — with a red DATE CHECK box (every story happened or was first reported on 23 Nov 2026 UTC; stale stories named and left out), a strictly chronological UTC timeline, and sections for the Middle East, Europe, North America, Latin America, South Asia, East Asia & Pacific, Africa, markets and tech, and sport, science and culture. Rendered deterministically with `python3 render.py`.
 
 ## Date discipline
 

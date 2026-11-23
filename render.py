@@ -113,9 +113,9 @@ SUB_LEADS = [
     ("TRUMP SPEAKS AT JUSTICE DEPT",
      "President addresses the department at 4:30 p.m. EST on 'protecting "
      "American families'.", "AP"),
-    ("DEMOCRATS CLINCH HOUSE, 258 SEATS",
-     "AP calls a majority of at least 258 seats, the largest for either "
-     "party since 1992.", "AP"),
+    ("INDIA GIVES NEPAL $1.62BN PACKAGE",
+     "Modi announces aid after August floods killed about 1,500.",
+     "Reuters"),
 ]
 
 # body sections: (section title, [(headline, sub, source), ...])
@@ -123,7 +123,7 @@ LEFT_SECTIONS = [
     ("MIDDLE EAST", [
         ("TRUMP 'INCLINED' TO HIT IRAN AGAIN",
          "President says he will resume conflict if no deal is reached by "
-         "the New Year.", "Economic Times"),
+         "New Year.", "Economic Times"),
         ("IRAN WARNS OF RETALIATION",
          "Revolutionary Guard will answer any renewed US attack, Tehran "
          "says.", "AP"),
@@ -174,9 +174,9 @@ LEFT_SECTIONS = [
 
 RIGHT_SECTIONS = [
     ("SOUTH ASIA", [
-        ("INDIA GIVES NEPAL $1.62BN PACKAGE",
-         "Modi announces aid after August floods killed about 1,500.",
-         "Reuters"),
+        ("BANGLADESH VOWS TO ARREST HASINA",
+         "Dhaka says ex-PM will be jailed if she returns from India in "
+         "December.", "Reuters"),
         ("PAKISTAN HOSTS NUCLEAR SECURITY TALKS",
          "IAEA network meeting opens in Islamabad with 49 nations.",
          "Foreign Office"),
@@ -243,13 +243,14 @@ TIMELINE = [
      "US Treasury"),
 ]
 
-# markets table: numbers only, all from counted stories above.
+# markets table: numbers only, all from counted stories above
+# (TAIEX from body; KSE-100 + gold from the timeline, as before).
 MARKET_ROWS = [
-    ("TAIEX", "+2.9%"), ("KOSPI", "-3.2%"), ("ChiNext", "+1.2%"),
+    ("TAIEX", "+2.9%"), ("KSE-100", "+1,000 pts"),
     ("Gold futures", "$3,614.90"),
 ]
 
-NUMBERS_STRIP = ("IN NUMBERS:  8,241 Samsung clients  •  258 House seats  •  "
+NUMBERS_STRIP = ("IN NUMBERS:  8,241 Samsung clients  •  49 nations  •  "
                  "+31% NVIDIA  •  $1.62bn Nepal  •  720/9 India  •  11,762 "
                  "Ebola cases  •  54.6 PMI  •  104 matches")
 
@@ -263,7 +264,12 @@ DATECHECK_BODY = ("LEFT OUT ON PURPOSE:  NVIDIA chief steps down — 12 Nov   �
 FOOTER_SRC = ("Sources: AP  •  Reuters  •  AFP  •  BBC  •  Yonhap  •  Xinhua  •  "
               "UN News  •  Morningstar  •  Rio Times  •  FIFA  •  Chess.com  •  "
               "The Standard")
-FOOTER_LINE = "The world's news as reported on Monday 23 November 2026 (UTC)."
+FOOTER_SRC2 = ("Economic Times  •  RIA Novosti  •  Foreign Office  •  "
+               "Singapore MFA  •  COMEX  •  Tribune  •  Dunya News  •  "
+               "Goobjoog  •  Chicago Fed  •  US Treasury")
+# NOTE: FOOTER_LINE ("The world's news as reported on ...") was dropped —
+# the date already appears in the dateline and the DATE CHECK title, and
+# the two-line sources footer needs both footer rows.
 
 
 def all_stories():
@@ -395,12 +401,16 @@ def build():
     y = 958
     d.rectangle([M, y, W - M, y + 22], fill=BLACK)
     d.text((M + 8, y + 4), NUMBERS_STRIP, font=f_num, fill="white")
-    # footer
+    # footer (two lines: all 22 sources used; widths asserted)
+    assert d.textlength(FOOTER_SRC, font=f_foot) <= CW, \
+        "footer line 1 too wide: %d" % d.textlength(FOOTER_SRC, font=f_foot)
+    assert d.textlength(FOOTER_SRC2, font=f_foot) <= CW, \
+        "footer line 2 too wide: %d" % d.textlength(FOOTER_SRC2, font=f_foot)
     y = 986
     d.text(((W - d.textlength(FOOTER_SRC, font=f_foot)) / 2, y), FOOTER_SRC,
            font=f_foot, fill=GREY)
     y += 13
-    d.text(((W - d.textlength(FOOTER_LINE, font=f_foot)) / 2, y), FOOTER_LINE,
+    d.text(((W - d.textlength(FOOTER_SRC2, font=f_foot)) / 2, y), FOOTER_SRC2,
            font=f_foot, fill=GREY)
     print("stories=%d unique OK" % n)
     print("fonts actual px: masthead=%d lead=%d sub_head=%d section=%d "
