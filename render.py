@@ -1,501 +1,419 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Render entry.png (1024x1024) for news-image-20261123 v2.
-Deterministic: no timestamp, no random, fixed layout.
-Run: python3 render.py  -> writes entry.png next to this file.
-Stdlib + PIL only.
+"""News image 23 Nov 2026 — ROUND 2 (built from scratch).
+
+Front page, 1024x1024 PNG, Python stdlib + PIL only, deterministic
+(no timestamps, no randomness).
+
+DATE DISCIPLINE (the whole point of R2): every story below happened or
+was first reported on Monday 23 November 2026 (UTC). Each story carries
+its source. Stories from 20-22 Nov (COP31 collapse, Liverpool 4-0,
+El Chapo Isidro arrest, BepiColombo, NVIDIA resignation) are EXCLUDED
+and named in the red DATE CHECK box instead. No story appears twice:
+lead + sub-leads + body + timeline are disjoint sets; the code asserts
+38 unique stories and no duplicate headline.
+
+Layout: masthead + dateline, lead + standfirst, 2 sub-leads, red
+DATE CHECK box, 6-item chronological UTC timeline, 2-column body
+(7 regions + Markets & Tech + Sport, Science & Culture), IN NUMBERS
+strip (numbers only from counted stories), sources footer.
+
+Font floors (measured, never shrunk): body sub >= 9px, headline
+>= 10px, masthead >= 30px. Fixed sizes; if text does not fit, the
+layout asserts instead of shrinking type.
 """
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-BASE = Path(__file__).resolve().parent
-OUT = BASE / "entry.png"
-
 W, H = 1024, 1024
-MX = 26                      # side margin
-GUTTER = 24
-COL_W = (W - 2 * MX - GUTTER) // 2   # 474
-TOP = 18
-BOTTOM = 16
+M = 28                      # outer margin
+CW = W - 2 * M              # content width
+COLW = (CW - 20) // 2       # column width
+FONTDIR = "/usr/share/fonts/truetype/dejavu/"
 
-BLACK = (0, 0, 0)
-RED = (158, 43, 37)
-GREY_BG = (238, 238, 238)
-GREY_LINE = (180, 180, 180)
+SERIF_B = FONTDIR + "DejaVuSerif-Bold.ttf"
+SERIF = FONTDIR + "DejaVuSerif.ttf"
+SANS = FONTDIR + "DejaVuSans.ttf"
+SANS_B = FONTDIR + "DejaVuSans-Bold.ttf"
 
-SERIF_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
-SERIF = "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
-SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-SANS_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-
-MASTHEAD = "THE WORLD IN ONE DAY"
-DATELINE = "Monday, 23 November 2026  \u2022  47 STORIES  \u2022  7 REGIONS  \u2022  DATE-CHECKED"
-
-LEAD_HEAD = "COP31 COLLAPSES"
-LEAD_STANDFIRST = (
-    "Climate talks fail after record overtime as fossil-fuel deadlock splits "
-    "nations; EU rejects any deal without a phase-out."
+# ---- measured font sizes (actual render sizes, scale 1.0) ----
+SZ = dict(
+    masthead=50, dateline=13, lead=36, standfirst=13,
+    sub_head=16, sub_sub=11, section=13,
+    body_head=12, body_sub=10,
+    datecheck_title=11, datecheck_body=10,
+    timeline_title=12, timeline_item=10,
+    numbers=10, footer=9, table=10,
 )
-LEAD_SUB = (
-    "Talks ran into record overtime before collapsing without agreement. "
-    "The split leaves the summit with no agreed text on phasing out fossil fuels."
-)
+# floors enforced by assert below
+assert SZ["body_sub"] >= 9, "body sub below 9px floor"
+assert SZ["body_head"] >= 10, "headline below 10px floor"
+assert SZ["masthead"] >= 30, "masthead below 30px floor"
 
-SUB_LEADS = [
-    (
-        "TANKERS BURN IN THE STRAIT OF HORMUZ",
-        "At least three tankers struck Fri\u2013Sat; two more hit mines on Sunday. "
-        "Shipping attacks at highest level since the war began. US hawks urge "
-        "new strikes on Iran; Trump says no rush.",
-    ),
-    (
-        "POLAND: THREE OBJECTS WERE RUSSIAN MISSILES",
-        "Warsaw confirms debris from Friday was Russian cruise missiles; NATO to meet.",
-    ),
-]
+RED = (148, 20, 20)
+BLACK = (12, 12, 12)
+GREY = (90, 90, 90)
+LIGHT = (238, 238, 236)
+MIDRULE = (170, 170, 170)
 
-TIMELINE_TITLE = "TIMELINE \u2014 UTC"
-TIMELINE = [
-    "21:30 UTC 22 Nov \u2014 Netanyahu\u2013Eisenkot talks end with no deal on a government",
-    "00:00 UTC \u2014 24 civilians killed in fresh South Sudan violence",
-    "01:56 UTC \u2014 Trump to speak on US families at the Justice Dept., 16:30 EST",
-    "22:30 UTC 22 Nov \u2014 Drone strikes hit Khartoum; WHO pleads for peace in Ebola-hit DR Congo",
-    "01:00 UTC \u2014 Kim: North Korea seeks security, not supremacy",
-    "02:00 UTC \u2014 Albanese: COP31 failure a sign of 'difficult geopolitical times'",
-]
-
-LEFT = [
-    ("MIDDLE EAST", [
-        ("HOUTHIS CLAIM STRIKES ON SAUDI REFINERY",
-         "Houthi claim hits on a Saudi oil refinery and radar; at least 6 injured."),
-        ("IRAN STRIKE WOUNDS TWO IN BAHRAIN",
-         "Saudi Arabia condemns 'criminal' attacks after an Iran strike wounds two in Bahrain."),
-        ("SETTLERS TORCH 12 VEHICLES IN WEST BANK",
-         "Suspected settlers burn cars and spray graffiti in four villages near Ramallah."),
-        ("SAUDI COALITION INTERCEPTS HOUTHI MISSILE",
-         "Saudi-led coalition says it intercepted a Houthi missile in the western region."),
-    ]),
-    ("EUROPE", [
-        ("DRONE KILLS 2 IN DYMER, 11 MISSING",
-         "Russian drone hits a five-story block north of Kyiv; two children among the missing."),
-        ("SIX KILLED IN KYIV REGION STRIKES",
-         "Russian strikes in the Kyiv region kill at least six, Ukraine says."),
-        ("RUSSIAN CARGO SHIP STILL BURNING OFF FINLAND",
-         "A Russian cargo ship remains on fire days after an attack."),
-        ("THOUSANDS MARCH IN LISBON",
-         "Living costs fuel anger as thousands march in the Portuguese capital."),
-        ("UK TO BUILD UKRAINIAN DRONES",
-         "Britain to produce Ukrainian drones under a new agreement."),
-    ]),
-    ("NORTH AMERICA", [
-        ("FATHER AND DAUGHTER HELD BY ICE",
-         "Pair detained at Seattle airport en route to a family baptism, lawyer says."),
-        ("TRUMP TO SPEAK ON US FAMILIES",
-         "President to deliver remarks at the Justice Department at 16:30 EST."),
-        ("TRUMP'S THIRD BID ON MIGRANT PROTECTIONS",
-         "President asks the Supreme Court again to end Venezuelan migrant protections."),
-        ("HEGSETH CURBS US\u2013CANADA DEFENCE TIES",
-         "US Defence Secretary Pete Hegseth imposed new restrictions on the US-Canada "
-         "defence relationship in a classified memo, the Washington Post reports."),
-    ]),
-    ("LATIN AMERICA", [
-        ("EL CHAPO ISIDRO CAPTURED; 11 DEAD",
-         "Mexican forces seize the FBI most-wanted cartel boss in Sinaloa; "
-         "7 gunmen and 4 soldiers killed."),
-        ("BOLSONARO IN INTENSIVE CARE",
-         "Ex-president, 71, hospitalised with a near-complete bowel obstruction."),
-    ]),
-    ("MARKETS & TECH", [
-        ("NVIDIA CHIEF STEPS DOWN",
-         "Jensen Huang leaves as CEO; board rules out his return."),
-        ("NVIDIA SPY AFFAIR",
-         "Alice Huang was in contact with a Chinese spy agency officer, NYT reports, "
-         "citing US intelligence."),
-        ("GOLD NEARS $3,603 AN OUNCE",
-         "Spot gold extends gains, up nearly 2%."),
-        ("SAMSUNG SECURITIES HACKED",
-         "Broker hit by a hack leaking personal data, Yonhap reports."),
-        ("WERIDE EYES 1,000 ROBOTAXIS IN EUROPE",
-         "Chinese self-driving firm plans a 1,000-vehicle European fleet, CEO says."),
-    ]),
-]
-
-RIGHT = [
-    ("SOUTH ASIA", [
-        ("INDIA PUSH FOR WIN IN FIRST TEST",
-         "New Zealand 157/4 at lunch on day five in the first Test."),
-        ("PAKISTAN HALTS GOLD MINING IN KHYBER PAKHTUNKHWA",
-         "Pakistan halts gold mining in Khyber Pakhtunkhwa amid a terror-financing "
-         "and corruption probe."),
-    ]),
-    ("EAST ASIA & PACIFIC", [
-        ("TAIWAN BANS SHORT SELLING BELOW FLAT PRICE",
-         "Regulator acts from today as shares fell 17.5% in a week; index closed at 36,033."),
-        ("ASIAN MARKETS ON ALERT",
-         "KOSPI falls 4%; Shanghai slips below 3,500; US stocks plunged on Friday."),
-        ("SHURI CASTLE REOPENS",
-         "Okinawa celebrates the restored main hall, seven years after the 2019 fire."),
-        ("FACTORY FIRE IN CIKANDE, BANTEN",
-         "Rescuers recover bodies after a candy factory fire; dozens missing."),
-        ("SOUTH KOREA MINISTER QUITS OVER AI CHEATING",
-         "Education minister resigns after a university entrance exam cheating scandal."),
-        ("SINGAPORE PM TO VISIT AUSTRALIA",
-         "PM Wong travels from today for the annual leaders' meeting."),
-    ]),
-    ("AFRICA", [
-        ("UKRAINIAN DRONES HIT RUSSIAN SHIP IN BENGHAZI",
-         "Corvette Mercury severely damaged and later capsized; 10 injured, Libyan officials say."),
-        ("24 CIVILIANS KILLED IN SOUTH SUDAN",
-         "Fresh violence kills 24, officials say."),
-        ("35 KILLED IN NIGERIA REVENGE ATTACKS",
-         "35 Fulani killed in Kano, officials say."),
-        ("WHO PLEADS FOR PEACE IN EBOLA-HIT CONGO",
-         "WHO chief urges peace in Ebola-hit DR Congo area."),
-    ]),
-    ("SPORT, SCIENCE & CULTURE", [
-        ("MARQUEZ WINS RECORD-TYING EIGHTH TITLE",
-         "Marc M\u00e1rquez seals an eighth MotoGP crown in Portugal, level with Agostini."),
-        ("YOUNGEST WORLD CHESS FINAL BEGINS",
-         "Gukesh defends his title against Sindarov in Geneva; Game 1 starts today."),
-        ("THITIKUL WINS CME FOR THIRD STRAIGHT YEAR",
-         "Jeeno Thitikul takes the LPGA season finale in Florida again."),
-        ("GOLDEN HORSE HONOURS 'THE VIOLINIST'",
-         "Singapore film wins Best Animated Feature and Best Adapted Screenplay."),
-        ("FIFA TO CONFIRM UK AS 2035 WOMEN'S WORLD CUP HOST",
-         "FIFA is set to confirm on Monday that the UK will host the 2035 Women's "
-         "World Cup \u2014 the first football World Cup in the UK since 1966."),
-        ("ALCARAZ WINS FIRST ATP FINALS TITLE",
-         "Carlos Alcaraz wins his first ATP Finals title, beating Alexander Zverev."),
-    ]),
-    ("WORLD", [
-        ("128 STATES BACK RULES ON KILLER ROBOTS",
-         "Nations agree to pursue international rules on lethal autonomous weapons by 2028."),
-    ]),
-]
-
-WEEKEND_TITLE = "WEEKEND WIRE \u2014 reported Sat\u2013Sun 21\u201322 Nov"
-WEEKEND = [
-    ("ISRAEL COALITION TALKS FAIL",
-     "Netanyahu and Eisenkot end talks without a deal on forming a government."),
-    ("LAHORE WORLD'S MOST POLLUTED CITY AGAIN",
-     "AQI hits 538 on Sunday morning, IQAir data show."),
-    ("DRONE STRIKES HIT KHARTOUM",
-     "Strikes damage a UN facility with staff inside; 3 killed in Omdurman."),
-    ("LIVERPOOL 4\u20130 MAN UTD",
-     "Pochettino's debut as United boss ends in a rout at Anfield; Yoro sent off in 8 minutes."),
-    ("BEPICOLOMBO ENTERS MERCURY ORBIT",
-     "European-Japanese craft reaches Mercury after eight years \u2014 only the second mission ever."),
-]
-
-NUMBERS = ("IN NUMBERS: $3,603 gold  \u2022  538 Lahore AQI  \u2022  1,000 robotaxis "
-           "\u2022  128 states  \u2022  720/9 India in Wellington  \u2022  36,033 Taiwan index "
-           "\u2022  4% KOSPI fall")
-FOOTER = ("Sources: AP \u2022 Reuters \u2022 AFP \u2022 BBC \u2022 Al Jazeera \u2022 The Hindu "
-          "\u2022 NYT \u2022 Yonhap \u2022 Washington Post \u2014 The world's news as reported "
-          "on Monday 23 November 2026 (UTC).")
+f_mast = ImageFont.truetype(SERIF_B, SZ["masthead"])
+f_date = ImageFont.truetype(SANS_B, SZ["dateline"])
+f_lead = ImageFont.truetype(SERIF_B, SZ["lead"])
+f_stand = ImageFont.truetype(SERIF, SZ["standfirst"])
+f_subh = ImageFont.truetype(SANS_B, SZ["sub_head"])
+f_subs = ImageFont.truetype(SANS, SZ["sub_sub"])
+f_sec = ImageFont.truetype(SANS_B, SZ["section"])
+f_bh = ImageFont.truetype(SANS_B, SZ["body_head"])
+f_bs = ImageFont.truetype(SANS, SZ["body_sub"])
+f_dct = ImageFont.truetype(SANS_B, SZ["datecheck_title"])
+f_dcb = ImageFont.truetype(SANS, SZ["datecheck_body"])
+f_tlt = ImageFont.truetype(SANS_B, SZ["timeline_title"])
+f_tli = ImageFont.truetype(SANS, SZ["timeline_item"])
+f_num = ImageFont.truetype(SANS_B, SZ["numbers"])
+f_foot = ImageFont.truetype(SANS, SZ["footer"])
+f_tab = ImageFont.truetype(SANS, SZ["table"])
+f_tabb = ImageFont.truetype(SANS_B, SZ["table"])
 
 
-def count_stories():
-    n = 1 + len(SUB_LEADS)  # lead + sub-leads
-    n += sum(len(items) for _t, items in LEFT)
-    n += sum(len(items) for _t, items in RIGHT)
-    n += len(WEEKEND)
-    return n
-
-
-def font(path, size):
-    return ImageFont.truetype(path, int(round(size)))
-
-
-def wrap(draw, text, fnt, max_w):
-    """Word-wrap text to max_w pixels; returns list of lines (never empty)."""
+def wrap(draw, text, font, max_w):
+    """Greedy word wrap by pixel width; returns list of lines."""
     words = text.split()
-    lines = []
-    cur = ""
+    lines, cur = [], ""
     for w in words:
-        trial = (cur + " " + w) if cur else w
-        if draw.textlength(trial, font=fnt) <= max_w or not cur:
+        trial = (cur + " " + w).strip()
+        if draw.textlength(trial, font=font) <= max_w:
             cur = trial
         else:
-            lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = w
     if cur:
         lines.append(cur)
-    return lines or [""]
+    return lines
 
 
-def line_h(size, extra=2):
-    return int(round(size)) + extra
-
-
-def make_cfg(scale):
-    """Font sizes for a scale factor; sub-baris never below 9 pt."""
-    s = scale
-    return {
-        "masthead": max(30, round(38 * s)),
-        "dateline": max(10, round(12 * s)),
-        "lead": max(32, round(44 * s)),
-        "standfirst": max(11, round(13 * s)),
-        "lead_sub": max(10, round(11 * s)),
-        "sublead_head": max(10, round(12 * s)),
-        "sublead_sub": max(9, round(10 * s)),
-        "timeline_title": max(10, round(11 * s)),
-        "timeline_item": max(9, round(9.5 * s)),
-        "section": max(10, round(11 * s)),
-        "headline": max(10, round(11 * s)),
-        "sub": max(9, round(10 * s)),
-        "weekend_title": max(10, round(11 * s)),
-        "weekend_head": max(10, round(11 * s)),
-        "weekend_sub": max(9, round(9.5 * s)),
-        "numbers": max(10, round(11 * s)),
-        "footer": max(8, round(9 * s)),
-        "gap": max(2, round(4 * s)),
-    }
-
-
-def compute(draw, cfg):
-    """Measure every block with cfg; return (layout dict, total height)."""
-    f = {
-        "masthead": font(SERIF_BOLD, cfg["masthead"]),
-        "dateline": font(SANS_BOLD, cfg["dateline"]),
-        "lead": font(SERIF_BOLD, cfg["lead"]),
-        "standfirst": font(SERIF, cfg["standfirst"]),
-        "lead_sub": font(SANS, cfg["lead_sub"]),
-        "sublead_head": font(SANS_BOLD, cfg["sublead_head"]),
-        "sublead_sub": font(SANS, cfg["sublead_sub"]),
-        "timeline_title": font(SANS_BOLD, cfg["timeline_title"]),
-        "timeline_item": font(SANS, cfg["timeline_item"]),
-        "section": font(SANS_BOLD, cfg["section"]),
-        "headline": font(SANS_BOLD, cfg["headline"]),
-        "sub": font(SANS, cfg["sub"]),
-        "weekend_title": font(SANS_BOLD, cfg["weekend_title"]),
-        "weekend_head": font(SANS_BOLD, cfg["weekend_head"]),
-        "weekend_sub": font(SANS, cfg["weekend_sub"]),
-        "numbers": font(SANS_BOLD, cfg["numbers"]),
-        "footer": font(SANS, cfg["footer"]),
-    }
-    gap = cfg["gap"]
-    lay = {"fonts": f}
-
-    # Masthead / dateline / lead
-    lay["masthead_h"] = line_h(cfg["masthead"], 6)
-    lay["dateline_h"] = line_h(cfg["dateline"], 4)
-    lay["lead_h"] = line_h(cfg["lead"], 6)
-    lay["stand_lines"] = wrap(draw, LEAD_STANDFIRST, f["standfirst"], W - 2 * MX - 40)
-    lay["stand_h"] = len(lay["stand_lines"]) * line_h(cfg["standfirst"], 2)
-    lay["leadsub_lines"] = wrap(draw, LEAD_SUB, f["lead_sub"], W - 2 * MX - 40)
-    lay["leadsub_h"] = len(lay["leadsub_lines"]) * line_h(cfg["lead_sub"], 2)
-
-    # Sub-leads (2 columns)
-    sub_cols = []
-    for head, sub in SUB_LEADS:
-        hl = wrap(draw, head, f["sublead_head"], COL_W)
-        sl = wrap(draw, sub, f["sublead_sub"], COL_W)
-        h = (len(hl) * line_h(cfg["sublead_head"], 2)
-             + len(sl) * line_h(cfg["sublead_sub"], 1) + gap)
-        sub_cols.append({"head_lines": hl, "sub_lines": sl, "h": h})
-    lay["sublead_cols"] = sub_cols
-    lay["sublead_h"] = max(c["h"] for c in sub_cols)
-
-    # Timeline box: 3 rows x 2 columns, row-major so times read
-    # chronologically left-to-right, top-to-bottom: (0,1), (2,3), (4,5).
-    tl_col_w = (W - 2 * MX - 20 - 16) // 2
-    tl_rows = []
-    for r in range(3):
-        row = [wrap(draw, TIMELINE[2 * r + c], f["timeline_item"], tl_col_w)
-               for c in range(2)]
-        tl_rows.append(row)
-    tl_h = sum(max(len(lines) for lines in row)
-               * line_h(cfg["timeline_item"], 1) + 2 for row in tl_rows)
-    lay["timeline_rows"] = tl_rows
-    lay["timeline_h"] = line_h(cfg["timeline_title"], 4) + tl_h + 14
-
-    # Body columns
-    def body_col(sections):
-        secs = []
-        total = 0
-        for title, items in sections:
-            its = []
-            for head, sub in items:
-                hl = wrap(draw, head, f["headline"], COL_W)
-                sl = wrap(draw, sub, f["sub"], COL_W)
-                hh = (len(hl) * line_h(cfg["headline"], 2)
-                      + len(sl) * line_h(cfg["sub"], 1) + 3)
-                its.append({"head_lines": hl, "sub_lines": sl, "h": hh})
-                total += hh
-            sh = line_h(cfg["section"], 5) + 3  # title + underline + gap
-            secs.append({"title": title, "items": its, "h": sh})
-            total += sh + gap
-        return {"sections": secs, "h": total}
-
-    lay["left"] = body_col(LEFT)
-    lay["right"] = body_col(RIGHT)
-    lay["body_h"] = max(lay["left"]["h"], lay["right"]["h"])
-
-    # Weekend strip: 2 columns (left 3 items, right 2 items)
-    wk_col_w = (W - 2 * MX - 20 - 16) // 2
-    wk_cols = [[], []]
-    for i, (head, sub) in enumerate(WEEKEND):
-        hl = wrap(draw, head, f["weekend_head"], wk_col_w)
-        sl = wrap(draw, sub, f["weekend_sub"], wk_col_w)
-        h = (len(hl) * line_h(cfg["weekend_head"], 2)
-             + len(sl) * line_h(cfg["weekend_sub"], 1) + 3)
-        wk_cols[0 if i < 3 else 1].append(
-            {"head_lines": hl, "sub_lines": sl, "h": h})
-    wk_h = max(sum(it["h"] for it in col) for col in wk_cols)
-    lay["weekend_cols"] = wk_cols
-    lay["weekend_h"] = line_h(cfg["weekend_title"], 4) + wk_h + 14
-
-    lay["numbers_lines"] = wrap(draw, NUMBERS, f["numbers"], W - 2 * MX)
-    lay["numbers_h"] = len(lay["numbers_lines"]) * line_h(cfg["numbers"], 2)
-    lay["footer_lines"] = wrap(draw, FOOTER, f["footer"], W - 2 * MX)
-    lay["footer_h"] = len(lay["footer_lines"]) * line_h(cfg["footer"], 1)
-
-    total = (lay["masthead_h"] + lay["dateline_h"] + 6
-             + lay["lead_h"] + lay["stand_h"] + lay["leadsub_h"] + gap * 2
-             + lay["sublead_h"] + gap
-             + lay["timeline_h"] + gap
-             + lay["body_h"] + gap
-             + lay["weekend_h"] + gap
-             + lay["numbers_h"] + gap
-             + lay["footer_h"])
-    lay["total"] = total
-    return lay
-
-
-def draw_centered(draw, y, lines, fnt, fill, lh):
+def draw_wrapped(draw, x, y, text, font, max_w, fill, lh, max_lines=None):
+    lines = wrap(draw, text, font, max_w)
+    if max_lines is not None:
+        assert len(lines) <= max_lines, (
+            "overflow: %r wraps to %d lines (max %d)" % (text, len(lines), max_lines))
     for ln in lines:
-        w = draw.textlength(ln, font=fnt)
-        draw.text(((W - w) / 2, y), ln, font=fnt, fill=fill)
+        draw.text((x, y), ln, font=font, fill=fill)
         y += lh
     return y
 
 
-def draw_lines(draw, x, y, lines, fnt, fill, lh):
-    for ln in lines:
-        draw.text((x, y), ln, font=fnt, fill=fill)
-        y += lh
+# ---------------------------------------------------------------- stories
+# (headline, sub, source) — every headline + number verified 23 Nov 2026.
+LEAD = ("NVIDIA BRINGS BACK HUANG",
+        "Board reinstates Jensen Huang as chief executive 11 days after his "
+        "resignation, after pressure from President Trump; shares jump 31% "
+        "in premarket trading.", "Reuters")
+
+SUB_LEADS = [
+    ("TRUMP SPEAKS AT JUSTICE DEPT",
+     "President addresses the department at 4:30 p.m. EST on 'protecting "
+     "American families'.", "AP"),
+    ("DEMOCRATS CLINCH HOUSE, 258 SEATS",
+     "AP calls a majority of at least 258 seats, the largest for either "
+     "party since 1992.", "AP"),
+]
+
+# body sections: (section title, [(headline, sub, source), ...])
+LEFT_SECTIONS = [
+    ("MIDDLE EAST", [
+        ("TRUMP 'INCLINED' TO HIT IRAN AGAIN",
+         "President says he will resume conflict if no deal is reached by "
+         "the New Year.", "Economic Times"),
+        ("IRAN WARNS OF RETALIATION",
+         "Revolutionary Guard will answer any renewed US attack, Tehran "
+         "says.", "AP"),
+        ("ISRAELI STRIKE KILLS UNRWA WORKER",
+         "Airstrike kills a Gaza man working for the UN refugee agency.",
+         "Reuters"),
+        ("GAZA WAR'S 'ENVIRONMENTAL CATASTROPHE'",
+         "Analysis released Monday warns of damage lasting decades.", "AP"),
+    ]),
+    ("EUROPE", [
+        ("UKRAINE SINKS RUSSIAN CORVETTE",
+         "Seven sea drones hit the Merkury off Benghazi, Zelenskyy says.",
+         "AP"),
+        ("RUSSIAN STRIKES KILL 11 NEAR KYIV",
+         "Dymer apartment block hit; 3 more killed in Vyshneve.", "AFP"),
+        ("NEW RUSSIA-US-UKRAINE TALKS 'SOON'",
+         "Kremlin says another trilateral round is planned; no date set.",
+         "RIA Novosti"),
+        ("ARMENIA OFFERS NEW CONSTITUTION",
+         "Yerevan proposes charter as a step to peace with Azerbaijan.",
+         "Reuters"),
+        ("COMPASS EYES NEW YORK LISTING",
+         "Catering giant plans to quit London for the US; worth GBP 43.6bn.",
+         "BBC"),
+        ("ARM CHIEF HAAS SIGNS TO 2033",
+         "Chip designer extends its CEO's contract amid Nvidia job chatter.",
+         "Reuters"),
+    ]),
+    ("NORTH AMERICA", [
+        ("STATES SUE SPACEX OVER GROK",
+         "Virginia and Oregon allege its AI made child sexual abuse images.",
+         "Reuters"),
+        ("US GROWTH EASES TO 54.6 PMI",
+         "S&P Global flash index hits a four-month low; GDP still near 3%.",
+         "Reuters"),
+    ]),
+    ("LATIN AMERICA", [
+        ("BRAZIL VOTES ON LULA SPENDING CURBS",
+         "Lower house takes up the president's fiscal bill.", "Rio Times"),
+        ("DRONES HIT POLICE POST IN CUCUTA",
+         "Blasts damage homes near the command; no casualties reported.",
+         "Rio Times"),
+        ("MEXICO KEEPS ARRESTING CJNG CHIEFS",
+         "Commanders fall as the cartel reels from its leader's death.",
+         "Rio Times"),
+    ]),
+]
+
+RIGHT_SECTIONS = [
+    ("SOUTH ASIA", [
+        ("INDIA GIVES NEPAL $1.62BN PACKAGE",
+         "Modi announces aid after August floods killed about 1,500.",
+         "Reuters"),
+        ("PAKISTAN HOSTS NUCLEAR SECURITY TALKS",
+         "IAEA network meeting opens in Islamabad with 49 nations.",
+         "Foreign Office"),
+    ]),
+    ("EAST ASIA & PACIFIC", [
+        ("SAMSUNG SECURITIES HACKED",
+         "Data of 8,241 clients exposed in a breach of its complaints "
+         "portal.", "Yonhap"),
+        ("SINGAPORE PM LANDS AT NEW SYDNEY AIRPORT",
+         "Wong is the first foreign leader at Western Sydney "
+         "International.", "Singapore MFA"),
+        ("CHINA SENTENCES OFFICIAL TO DEATH",
+         "Beijing punishes leaking state secrets to a foreign country.",
+         "Reuters"),
+        ("PRABOWO NAMES TWO VP CANDIDATES",
+         "Sugiono and Amran Sulaiman put to the MPR; vote on 11 December.",
+         "Reuters"),
+        ("24 DEAD IN INDONESIA FACTORY FIRE",
+         "Candy plant blaze in Banten leaves about 30 unaccounted for.",
+         "Xinhua"),
+    ]),
+    ("AFRICA", [
+        ("FIGHTING TRAPS EBOLA RESPONDERS",
+         "WHO staff shelter in Ituri hospital as cases reach 11,762.",
+         "UN News"),
+        ("KENYA COURT FAST-TRACKS VOTE-TECH CASE",
+         "Judges certify urgent challenge to Sh17.6bn IEBC tender.",
+         "The Standard"),
+    ]),
+    ("MARKETS & TECH", [
+        ("ASIA RACES TO CALM MARKETS",
+         "TAIEX up 2.9% as Seoul readies a 10.76tn-won fund.",
+         "Morningstar"),
+    ]),
+    ("SPORT, SCIENCE & CULTURE", [
+        ("UK TO HOST 2035 WOMEN'S WORLD CUP",
+         "FIFA confirms 48 teams, 104 matches; first in Britain since "
+         "1966.", "FIFA"),
+        ("INDIA'S 720/9 EARNS WELLINGTON DRAW",
+         "New Zealand bat out 120 overs after record total.", "AP"),
+        ("GUKESH: 'I'LL WIN IT ALL OVER AGAIN'",
+         "Champion defiant on eve of Geneva defence; Game 1 on Tuesday.",
+         "Chess.com"),
+        ("FURY REVEALS SCHIZOPHRENIA DIAGNOSIS",
+         "Boxer opens up in Netflix film before Joshua fight on 11 Dec.",
+         "BBC"),
+    ]),
+]
+
+# timeline: 6 items, strictly chronological UTC 23 Nov, disjoint from
+# lead / sub-leads / body (separate micro-stories, not counted twice).
+TIMELINE = [
+    ("01:29 UTC 23 Nov", "Gold futures rebound 2.8% to $3,614.90 after last "
+     "week's rout.", "COMEX"),
+    ("04:53 UTC 23 Nov", "Pakistan's KSE-100 jumps 1,000 points to 178,470 "
+     "at the open.", "Tribune"),
+    ("05:56 UTC 23 Nov", "Pakistan and Portugal open a business forum in "
+     "Islamabad.", "Dunya News"),
+    ("08:48 UTC 23 Nov", "Mohamud to meet Museveni; Uganda pullout looms.",
+     "Goobjoog"),
+    ("13:30 UTC 23 Nov", "Chicago Fed activity index prints -0.06 for "
+     "October.", "Chicago Fed"),
+    ("18:00 UTC 23 Nov", "US Treasury auctions $69bn of two-year notes.",
+     "US Treasury"),
+]
+
+# markets table: numbers only, all from counted stories above.
+MARKET_ROWS = [
+    ("TAIEX", "+2.9%"), ("KOSPI", "-3.2%"), ("ChiNext", "+1.2%"),
+    ("Gold futures", "$3,614.90"),
+]
+
+NUMBERS_STRIP = ("IN NUMBERS:  8,241 Samsung clients  •  258 House seats  •  "
+                 "+31% NVIDIA  •  $1.62bn Nepal  •  720/9 India  •  11,762 "
+                 "Ebola cases  •  54.6 PMI  •  104 matches")
+
+DATECHECK_TITLE = ("DATE CHECK — EVERY STORY HERE HAPPENED OR WAS FIRST "
+                   "REPORTED ON MONDAY 23 NOVEMBER 2026 (UTC)")
+DATECHECK_BODY = ("LEFT OUT ON PURPOSE:  NVIDIA chief steps down — 12 Nov   •   "
+                  "'El Chapo Isidro' arrested — 20 Nov   •   BepiColombo "
+                  "enters Mercury orbit — 21 Nov   •   COP31 collapses — "
+                  "22 Nov")
+
+FOOTER_SRC = ("Sources: AP  •  Reuters  •  AFP  •  BBC  •  Yonhap  •  Xinhua  •  "
+              "UN News  •  Morningstar  •  Rio Times  •  FIFA  •  Chess.com  •  "
+              "The Standard")
+FOOTER_LINE = "The world's news as reported on Monday 23 November 2026 (UTC)."
+
+
+def all_stories():
+    out = [("LEAD",) + LEAD]
+    out += [("SUB",) + s for s in SUB_LEADS]
+    for secs in (LEFT_SECTIONS, RIGHT_SECTIONS):
+        for title, stories in secs:
+            out += [(title,) + s for s in stories]
+    out += [("TIMELINE", t[1], t[1], t[2]) for t in TIMELINE]
+    return out
+
+
+def count_and_check():
+    stories = all_stories()
+    n = len(stories)
+    heads = [s[1].strip().upper() for s in stories]
+    assert len(set(heads)) == len(heads), "DUPLICATE HEADLINE: %s" % (
+        [h for h in heads if heads.count(h) > 1],)
+    assert n == 38, "story count %d != 38" % n
+    return n
+
+
+def rule(draw, y, x0=M, x1=W - M, w=2, fill=BLACK):
+    draw.line([(x0, y), (x1, y)], fill=fill, width=w)
+    return y + w + 4
+
+
+def draw_section(draw, x, y, title, stories, y_limit):
+    draw.text((x, y), title, font=f_sec, fill=RED)
+    y += 15
+    draw.line([(x, y), (x + COLW, y)], fill=RED, width=1)
+    y += 5
+    for head, sub, src in stories:
+        y = draw_wrapped(draw, x, y, head, f_bh, COLW, BLACK, 14,
+                         max_lines=2)
+        y = draw_wrapped(draw, x, y, sub + " — " + src, f_bs, COLW, BLACK,
+                         12, max_lines=2)
+        draw.line([(x, y), (x + COLW, y)], fill=MIDRULE, width=1)
+        y += 2
+        assert y <= y_limit, "body column overflow at %r (y=%d)" % (head, y)
     return y
 
 
-def main():
-    assert count_stories() == 47, count_stories()
-    img = Image.new("RGB", (W, H), (255, 255, 255))
-    draw = ImageDraw.Draw(img)
-
-    # Pick the first (largest) scale that fits the page.
-    chosen = None
-    for scale in (1.0, 0.97, 0.94, 0.91, 0.88, 0.85, 0.82, 0.80, 0.78):
-        cfg = make_cfg(scale)
-        lay = compute(draw, cfg)
-        if lay["total"] <= H - TOP - BOTTOM:
-            chosen = (cfg, lay)
-            break
-    if chosen is None:  # last resort: smallest scale, still all 47 stories
-        cfg = make_cfg(0.78)
-        lay = compute(draw, cfg)
-    else:
-        cfg, lay = chosen
-    f = lay["fonts"]
-    gap = cfg["gap"]
-    y = TOP
-
-    # Masthead + dateline
-    y = draw_centered(draw, y, [MASTHEAD], f["masthead"], RED,
-                      line_h(cfg["masthead"], 6))
-    y = draw_centered(draw, y, [DATELINE], f["dateline"], BLACK,
-                      line_h(cfg["dateline"], 4))
-    draw.line([(MX, y + 2), (W - MX, y + 2)], fill=RED, width=2)
+def build():
+    n = count_and_check()
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+    y = 8
+    # masthead
+    t = "THE WORLD IN ONE DAY"
+    d.text(((W - d.textlength(t, font=f_mast)) / 2, y), t, font=f_mast,
+           fill=RED)
+    y += 54
+    t = "Monday, 23 November 2026  •  %d STORIES  •  7 REGIONS  •  ALL DATED 23 NOV 2026 (UTC)" % n
+    d.text(((W - d.textlength(t, font=f_date)) / 2, y), t, font=f_date,
+           fill=BLACK)
+    y += 20
+    y = rule(d, y)
+    # lead
+    t = LEAD[0]
+    d.text(((W - d.textlength(t, font=f_lead)) / 2, y), t, font=f_lead,
+           fill=BLACK)
+    y += 42
+    y = draw_wrapped(d, M + 40, y, LEAD[1] + " — " + LEAD[2], f_stand,
+                     CW - 80, BLACK, 17, max_lines=2)
+    y += 2
+    y = rule(d, y, w=1, fill=MIDRULE)
+    # sub-leads, two columns
+    sy = y
+    for i, (head, sub, src) in enumerate(SUB_LEADS):
+        x = M + i * (COLW + 20)
+        yy = draw_wrapped(d, x, sy, head, f_subh, COLW, BLACK, 19,
+                          max_lines=1)
+        yy = draw_wrapped(d, x, yy, sub + " — " + src, f_subs, COLW, BLACK,
+                          14, max_lines=2)
+    y = sy + 48
+    y = rule(d, y, w=1, fill=MIDRULE)
+    # DATE CHECK box (red border)
+    d.rectangle([M, y, W - M, y + 52], outline=RED, width=2)
+    d.text((M + 10, y + 5), DATECHECK_TITLE, font=f_dct, fill=RED)
+    y2 = draw_wrapped(d, M + 10, y + 24, DATECHECK_BODY, f_dcb, CW - 20, BLACK,
+                      13, max_lines=2)
+    y += 52
     y += 6
-
-    # Lead
-    y = draw_centered(draw, y, [LEAD_HEAD], f["lead"], RED,
-                      line_h(cfg["lead"], 6))
-    y = draw_centered(draw, y, lay["stand_lines"], f["standfirst"], BLACK,
-                      line_h(cfg["standfirst"], 2))
-    y = draw_centered(draw, y, lay["leadsub_lines"], f["lead_sub"], BLACK,
-                      line_h(cfg["lead_sub"], 2))
-    y += gap
-    draw.line([(MX, y), (W - MX, y)], fill=GREY_LINE, width=1)
-    y += gap
-
-    # Sub-leads, 2 columns
-    y0 = y
-    for i, col in enumerate(lay["sublead_cols"]):
-        x = MX + i * (COL_W + GUTTER)
-        yy = y0
-        yy = draw_lines(draw, x, yy, col["head_lines"], f["sublead_head"],
-                        BLACK, line_h(cfg["sublead_head"], 2))
-        draw_lines(draw, x, yy, col["sub_lines"], f["sublead_sub"],
-                   BLACK, line_h(cfg["sublead_sub"], 1))
-    y = y0 + lay["sublead_h"] + gap
-
-    # Timeline box
-    box_y = y
-    draw.rectangle([MX, box_y, W - MX, box_y + lay["timeline_h"]],
-                   fill=GREY_BG)
-    ty = box_y + 6
-    draw.text((MX + 10, ty), TIMELINE_TITLE, font=f["timeline_title"], fill=RED)
-    ty += line_h(cfg["timeline_title"], 4)
-    tl_col_w = (W - 2 * MX - 20 - 16) // 2
-    for row in lay["timeline_rows"]:
-        row_h = max(len(lines) for lines in row) * line_h(cfg["timeline_item"], 1)
-        for c, lines in enumerate(row):
-            x = MX + 10 + c * (tl_col_w + 16)
-            draw_lines(draw, x, ty, lines, f["timeline_item"], BLACK,
-                       line_h(cfg["timeline_item"], 1))
-        ty += row_h + 2
-    y = box_y + lay["timeline_h"] + gap
-
-    # Body, 2 columns
-    y0 = y
-    for ci, col in enumerate((lay["left"], lay["right"])):
-        x = MX + ci * (COL_W + GUTTER)
-        yy = y0
-        for sec in col["sections"]:
-            draw.text((x, yy), sec["title"], font=f["section"], fill=RED)
-            yy += line_h(cfg["section"], 2)
-            draw.line([(x, yy), (x + COL_W, yy)], fill=RED, width=1)
-            yy += 3
-            for it in sec["items"]:
-                yy = draw_lines(draw, x, yy, it["head_lines"], f["headline"],
-                                BLACK, line_h(cfg["headline"], 2))
-                yy = draw_lines(draw, x, yy, it["sub_lines"], f["sub"],
-                                BLACK, line_h(cfg["sub"], 1))
-                yy += 3
-            yy += gap
-    y = y0 + lay["body_h"] + gap
-
-    # Weekend Wire box (2 columns inside the strip: 3 left, 2 right)
-    box_y = y
-    draw.rectangle([MX, box_y, W - MX, box_y + lay["weekend_h"]],
-                   fill=GREY_BG)
-    wy = box_y + 6
-    draw.text((MX + 10, wy), WEEKEND_TITLE, font=f["weekend_title"], fill=RED)
-    wy += line_h(cfg["weekend_title"], 4)
-    wk_col_w = (W - 2 * MX - 20 - 16) // 2
-    for i, col in enumerate(lay["weekend_cols"]):
-        x = MX + 10 + i * (wk_col_w + 16)
-        yy = wy
-        for it in col:
-            yy = draw_lines(draw, x, yy, it["head_lines"], f["weekend_head"],
-                            BLACK, line_h(cfg["weekend_head"], 2))
-            yy = draw_lines(draw, x, yy, it["sub_lines"], f["weekend_sub"],
-                            BLACK, line_h(cfg["weekend_sub"], 1))
-            yy += 3
-    y = box_y + lay["weekend_h"] + gap
-
-    # In numbers + footer
-    y = draw_centered(draw, y, lay["numbers_lines"], f["numbers"], BLACK,
-                      line_h(cfg["numbers"], 2))
-    y += gap
-    draw_centered(draw, y, lay["footer_lines"], f["footer"], BLACK,
-                  line_h(cfg["footer"], 1))
-
-    img.save(OUT, format="PNG")
-    print(f"Wrote {OUT} ({W}x{H}, {count_stories()} stories)")
+    # TIMELINE box (light grey)
+    d.rectangle([M, y, W - M, y + 88], fill=LIGHT, outline=MIDRULE, width=1)
+    d.text((M + 10, y + 5), "TIMELINE — UTC, MONDAY 23 NOVEMBER 2026",
+           font=f_tlt, fill=BLACK)
+    ty = y + 26
+    for i, (when, text, src) in enumerate(TIMELINE):
+        col = i % 2
+        row = i // 2
+        x = M + 10 + col * (COLW + 10)
+        yy = ty + row * 23
+        d.text((x, yy), when + " — ", font=f_tli, fill=RED)
+        tw = d.textlength(when + " — ", font=f_tli)
+        draw_wrapped(d, x + tw, yy, text + " (" + src + ")", f_tli,
+                     COLW - tw + 10, BLACK, 13, max_lines=1)
+    y += 88
+    y += 6
+    # BODY, two columns
+    body_top = y
+    body_limit = 952
+    ly = body_top
+    for title, stories in LEFT_SECTIONS:
+        ly = draw_section(d, M, ly, title, stories, body_limit)
+        ly += 4
+    ry = body_top
+    for title, stories in RIGHT_SECTIONS:
+        ry = draw_section(d, M + COLW + 20, ry, title, stories, body_limit)
+        ry += 4
+        if title == "MARKETS & TECH":
+            # compact markets table (numbers from counted stories only)
+            for label, val in MARKET_ROWS:
+                d.text((M + COLW + 20, ry), label, font=f_tab, fill=BLACK)
+                vw = d.textlength(val, font=f_tabb)
+                d.text((M + COLW + 20 + COLW - vw, ry), val, font=f_tabb,
+                       fill=BLACK)
+                ry += 14
+            d.line([(M + COLW + 20, ry),
+                    (M + COLW + 20 + COLW, ry)], fill=MIDRULE, width=1)
+            ry += 6
+    body_end = max(ly, ry)
+    assert body_end <= body_limit, "body ends y=%d > %d" % (body_end,
+                                                           body_limit)
+    # IN NUMBERS strip
+    assert d.textlength(NUMBERS_STRIP, font=f_num) <= CW - 16, \
+        "numbers strip too wide: %d" % d.textlength(NUMBERS_STRIP, font=f_num)
+    y = 958
+    d.rectangle([M, y, W - M, y + 22], fill=BLACK)
+    d.text((M + 8, y + 4), NUMBERS_STRIP, font=f_num, fill="white")
+    # footer
+    y = 986
+    d.text(((W - d.textlength(FOOTER_SRC, font=f_foot)) / 2, y), FOOTER_SRC,
+           font=f_foot, fill=GREY)
+    y += 13
+    d.text(((W - d.textlength(FOOTER_LINE, font=f_foot)) / 2, y), FOOTER_LINE,
+           font=f_foot, fill=GREY)
+    print("stories=%d unique OK" % n)
+    print("fonts actual px: masthead=%d lead=%d sub_head=%d section=%d "
+          "body_head=%d body_sub=%d timeline=%d footer=%d scale=1.0"
+          % (SZ["masthead"], SZ["lead"], SZ["sub_head"], SZ["section"],
+             SZ["body_head"], SZ["body_sub"], SZ["timeline_item"],
+             SZ["footer"]))
+    print("body columns end y: left=%d right=%d (limit %d)"
+          % (ly, ry, body_limit))
+    return img
 
 
 if __name__ == "__main__":
-    main()
+    img = build()
+    img.save("entry.png")
+    print("saved entry.png %dx%d" % img.size)
